@@ -1,7 +1,7 @@
-import pprint
-from wsgiref import headers
-
+import asyncio
 import requests
+from pprint import pprint
+from wsgiref import headers
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 
@@ -10,33 +10,82 @@ class SamaraDockeParser:
     RESULT = {}
     BASE_URL = 'https://samara.docke.ru'
     URL_LIST = ['https://samara.docke.ru/siding/lux/korabelny-brus-d5d/orekh/']
-    CLASTER_LINKS = []
+    LINKS = {}
     HEADERS = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'User-Agent': UserAgent().random
     }
     TASKS = []
 
-    def request(self, url, headers, ):
-        return requests.get(url, headers=headers).content
-
-    def get_soup(self, response, parser='html.parser'):
-        return BeautifulSoup(response, features=parser)
+    def get_soup(self, url, headers):
+        response = requests.get(url, headers=headers)
+        return BeautifulSoup(response.content, 'html.parser')
 
     def get_clasters(self):
         soup = BeautifulSoup(requests.get(self.BASE_URL, headers=self.HEADERS).content, 'html.parser')
         # for item in soup.find('nav', class_='popup-menu popup-menu--products').find_all('a'):
         for item in soup.find('nav', class_='popup-menu popup-menu--products').find_all('a', class_='is-bold'):
-            print(self.BASE_URL + item['href'])
-            self.CLASTER_LINKS.append(self.BASE_URL + item['href'])
+            self.LINKS.setdefault(self.BASE_URL + item['href'], [])
 
-    def get_groups(self):
+    def get_series(self, claster_url):
+        result_urls = []
+        soup = self.get_soup(claster_url, self.HEADERS)
+        for url in soup.find('div', class_='cards-slider').find_all('a', class_='series-card'):
+            result_urls.append(
+                self.BASE_URL + url.get('href')
+            )
+        # print(len(result_urls), result_urls)
+        return result_urls
 
+    def get_collections(self, series_url):
+        result_urls = []
+        soup = self.get_soup(series_url, self.HEADERS)
+        for url in soup.find('div', class_='cards-slider').find_all('a', class_='series-card'):
+            result_urls.append(
+                self.BASE_URL + url.get('href')
+            )
+        # print(len(result_urls), result_urls)
+        return result_urls
+
+    def get_goods_urls(self, goods_url):
+        goods_urls = []
+        soup = self.get_soup(goods_url, self.HEADERS)
+        for url in soup.find('div', class_='products-tile').find_all('a', class_='product-card__name'):
+            goods_urls.append(
+                goods_url[:-1] + url.get('href')
+            )
+        return goods_urls
 
     def get_all_urls(self):
+        result_urls = []
+        urls = []
+        # Получение срий
+        for url in self.LINKS:
+            series_url = self.get_series(url)
+            for s_url in series_url:
+                try:
+                    collection_urls = self.get_collections(s_url)
+                    for c_url in collection_urls:
+                        goods_urls = self.get_goods_urls(c_url)
+                        self.LINKS[url].extend(goods_urls)
+                except Exception as e:
+                    print(url, s_url, c_url, e)
+                    goods_urls = self.get_goods_urls(s_url)
+                    self.LINKS[url].extend(goods_urls)
+                # print(url, s_url, collection_urls)
+            # for s_url in series_url:
+            break
+        # self.LINKS.update(urls)
+
+        pprint(self.LINKS)
+
+    def get_data_from_page_facades(self, soup):
         pass
 
-    def get_data_from_page(self, soup):
+    def get_data_from_page_roofs(self, soup):
+        pass
+
+    def get_data_from_page_vodostoki(self, soup):
         pass
 
     def get_tasks(self):
@@ -102,3 +151,4 @@ class SamaraDockeParser:
 
 samara_parser = SamaraDockeParser()
 samara_parser.get_clasters()
+samara_parser.get_all_urls()
