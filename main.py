@@ -69,7 +69,6 @@ class SamaraDockeParser:
                         goods_urls = self.get_goods_urls(c_url)
                         self.LINKS[url].extend(goods_urls)
                 except Exception as e:
-                    print(url, s_url, c_url, e)
                     goods_urls = self.get_goods_urls(s_url)
                     self.LINKS[url].extend(goods_urls)
                 # print(url, s_url, collection_urls)
