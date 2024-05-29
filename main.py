@@ -1,4 +1,6 @@
 import asyncio
+
+import aiohttp
 import requests
 from pprint import pprint
 from wsgiref import headers
@@ -17,9 +19,9 @@ class SamaraDockeParser:
     }
     TASKS = []
 
-    def get_soup(self, url, headers):
-        response = requests.get(url, headers=headers)
-        return BeautifulSoup(response.content, 'html.parser')
+    async def get_soup(self, session, url, headers):
+        async with session.get(url, headers=headers) as response:
+            return BeautifulSoup(await response.content, 'html.parser')
 
     def get_clasters(self):
         soup = BeautifulSoup(requests.get(self.BASE_URL, headers=self.HEADERS).content, 'html.parser')
@@ -27,9 +29,24 @@ class SamaraDockeParser:
         for item in soup.find('nav', class_='popup-menu popup-menu--products').find_all('a', class_='is-bold'):
             self.LINKS.setdefault(self.BASE_URL + item['href'], [])
 
-    def get_series(self, claster_url):
+    async def get_series(self, session, claster_url):
         result_urls = []
-        soup = self.get_soup(claster_url, self.HEADERS)
+        # soup = await self.get_soup(session, claster_url, self.HEADERS)
+        async with session.get(claster_url, headers=headers) as response:
+            soup =  BeautifulSoup(await response.read(), 'lxml')
+            for url in soup.find('div', class_='cards-slider').find_all('a', class_='series-card'):
+                result_urls.append(
+                    self.BASE_URL + url.get('href')
+                )
+            # print(len(result_urls), result_urls)
+            return result_urls
+
+    async def get_collections(self, session, series_url):
+        result_urls = []
+
+        # soup = await self.get_soup(session, series_url, self.HEADERS)
+        async with session.get(series_url, headers=headers) as response:
+            soup = BeautifulSoup(await response.read(), 'html.parser')
         for url in soup.find('div', class_='cards-slider').find_all('a', class_='series-card'):
             result_urls.append(
                 self.BASE_URL + url.get('href')
@@ -37,44 +54,28 @@ class SamaraDockeParser:
         # print(len(result_urls), result_urls)
         return result_urls
 
-    def get_collections(self, series_url):
-        result_urls = []
-        soup = self.get_soup(series_url, self.HEADERS)
-        for url in soup.find('div', class_='cards-slider').find_all('a', class_='series-card'):
-            result_urls.append(
-                self.BASE_URL + url.get('href')
-            )
-        # print(len(result_urls), result_urls)
-        return result_urls
-
-    def get_goods_urls(self, goods_url):
+    async def get_goods_urls(self, session, goods_url):
         goods_urls = []
-        soup = self.get_soup(goods_url, self.HEADERS)
+        # soup = await self.get_soup(session, goods_url, self.HEADERS)
+        async with session.get(goods_url, headers=headers) as response:
+            soup = BeautifulSoup(await response.read(), 'html.parser')
         for url in soup.find('div', class_='products-tile').find_all('a', class_='product-card__name'):
             goods_urls.append(
                 goods_url[:-1] + url.get('href')
             )
         return goods_urls
 
-    def get_all_urls(self):
-        result_urls = []
-        urls = []
-        # Получение срий
-        for url in self.LINKS:
-            series_url = self.get_series(url)
-            for s_url in series_url:
-                try:
-                    collection_urls = self.get_collections(s_url)
-                    for c_url in collection_urls:
-                        goods_urls = self.get_goods_urls(c_url)
-                        self.LINKS[url].extend(goods_urls)
-                except Exception as e:
-                    goods_urls = self.get_goods_urls(s_url)
+    async def get_all_urls(self, session, url):
+        series_url = await self.get_series(session, url)
+        for s_url in series_url:
+            try:
+                collection_urls = await self.get_collections(session, s_url)
+                for c_url in collection_urls:
+                    goods_urls = await self.get_goods_urls(session, c_url)
                     self.LINKS[url].extend(goods_urls)
-                # print(url, s_url, collection_urls)
-            # for s_url in series_url:
-            break
-        # self.LINKS.update(urls)
+            except Exception as e:
+                goods_urls = await self.get_goods_urls(session, s_url)
+                self.LINKS[url].extend(goods_urls)
 
         pprint(self.LINKS)
 
@@ -87,14 +88,21 @@ class SamaraDockeParser:
     def get_data_from_page_vodostoki(self, soup):
         pass
 
-    def get_tasks(self):
-        pass
+    async def get_tasks(self):
+        samara_parser.get_clasters()
+        print(self.LINKS)
+        async with aiohttp.ClientSession(trust_env=True) as session:
+            for url in self.LINKS.keys():
+                self.TASKS.append(asyncio.create_task(self.get_all_urls(session, url)))
+
+            await asyncio.gather(*self.TASKS)
 
     def run(self):
         asyncio.run(
             self.get_tasks()
         )
 
+    def a(self):
         response = requests.get(url, headers=headers).content
         soup = BeautifulSoup(response, 'html.parser')
         categpry_name_1_5 = soup.find('nav', class_='breadcrumbs container')
@@ -149,5 +157,4 @@ class SamaraDockeParser:
 
 
 samara_parser = SamaraDockeParser()
-samara_parser.get_clasters()
-samara_parser.get_all_urls()
+samara_parser.run()
