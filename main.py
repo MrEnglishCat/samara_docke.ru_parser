@@ -89,7 +89,9 @@ class SamaraDockeParser:
 
     async def get_all_urls(self, session, url):
         series_url = await self.get_series(session, url)
+
         for s_url in series_url:
+            print(f"[WARNING] Обработка серии {s_url}")
             try:
                 collection_urls = await self.get_collections(session, s_url)
                 for c_url in collection_urls:
@@ -104,18 +106,17 @@ class SamaraDockeParser:
                 elif 'roofs' in url:
                     await self.get_data_from_page_roofs(session, g_url)
                 else:
-                    item_data = self.get_data_from_page_vodostoki(session, g_url)
+                    await self.get_data_from_page_vodostoki(session, g_url)
                 print(f"[INFO] URLs: {g_url} обработана.")
                 # break
             # break
-        # pprint(self.LINKS)
 
-        # pprint(self.RESULT)
 
-    async def get_data_from_page_facades(self, session, url):
+    async def parsing_data_from_page(self,session, url):
         async with session.get(url, headers=self.HEADERS) as response:
-            result = {}
             soup = BeautifulSoup(await response.read(), 'html.parser')
+            self.parsing_data_from_page(soup, url)
+
             if (a := soup.find('div', class_='page-404 container')):
                 self.RESULT.append(
                     {
@@ -125,9 +126,14 @@ class SamaraDockeParser:
                 print(f"[ERROR] {url}, page not found!")
                 self.ERRORS.setdefault(url, '[ERROR] {url}, page not found!')
                 return
+            elif (a:= soup.find('pre')):
+                error_description = a.text
+                print(f"[ERROR] {url}, Goods data not found! ([TypeError] - CODE ERROR on web-page)")
+                self.ERRORS.setdefault(url, "[ERROR] {url}, Goods data not found! ([TypeError] - CODE ERROR on web-page)")
             try:
                 categpry_name_1_5 = soup.find('nav', class_='breadcrumbs container')
                 link_names = categpry_name_1_5.find_all('a')
+                print('===', len(link_names))
                 last_category_name = categpry_name_1_5.find_all('span')[-1]
                 article = soup.find('div', class_='product-detail__articul').text.split(':')[-1].strip()
                 item_name = soup.find('h1', class_='product-heading').text
@@ -156,20 +162,23 @@ class SamaraDockeParser:
                                     }
                                 )
 
+                documents_links = [item.get('href') for item in soup.find('div', class_='documents').find_all('a')]
+
                 self.RESULT.append(
                     {
                         'url': url,
                         'категория 1': link_names[0].text,
                         'категория 2': link_names[1].text,
                         'категория 3': link_names[2].text,
-                        'категория 4': link_names[3].text,
+                        'категория 4': link_names[3].text if len(link_names) == 4 else None,
                         'категория 5': last_category_name.text,
                         'артикул': article,
                         'Наименование товара': item_name,
                         'цена': price_value,
                         'Ед изм': price_data,
                         'image_url': self.BASE_URL + image_url,
-                        'характеристики': all_characteristics_data
+                        'характеристики': all_characteristics_data,
+                        'ссылки на документы': documents_links,
                     }
                 )
 
@@ -181,70 +190,14 @@ class SamaraDockeParser:
                 print(f"[ERROR] Ошибка поиска данных со страницы {url}")
                 self.ERRORS.setdefault(url, '[ERROR] Ошибка поиска данных со страницы')
 
+    async def get_data_from_page_facades(self, session, url):
+        await self.parsing_data_from_page(session, url)
+
     async def get_data_from_page_roofs(self, session, url):
-        async with session.get(url, headers=self.HEADERS) as response:
-            result = {}
-            soup = BeautifulSoup(await response.read(), 'html.parser')
-            if (a := soup.find('div', class_='page-404 container')):
-                self.RESULT.append(
-                    {
-                        url: a.text
-                    }
-                )
-                print(f"[ERROR] {url}, page not found!")
-                self.ERRORS.setdefault(url, '[ERROR] {url}, page not found!')
-                return
-            try:
-                categpry_name_1_5 = soup.find('nav', class_='breadcrumbs container')
-                link_names = categpry_name_1_5.find_all('a')
-                last_category_name = categpry_name_1_5.find_all('span')[-1]
-                article = soup.find('div', class_='product-detail__articul').text.split(':')[-1].strip()
-                item_name = soup.find('h1', class_='product-heading').text
-                price_value = soup.find('span', class_='product-price__value').text
-                price_data = soup.find('span', class_='product-price__text').text
-                image_url = soup.find('div', class_='product-img__items').find('a')['href']
-                all_characteristics = soup.find('div', class_='product-blocks__item').find('div',
-                                                                                           class_='characteristics').find_all(
-                    class_='characteristics__item')
-                all_characteristics_data = {}
-                for item in all_characteristics:
-                    if item is not None:
-                        i_name = item.find('div', class_='characteristics__name')
-                        i_value = item.find('div', class_='characteristics__value')
-                        if i_name is not None and i_value is not None:
-                            i_name = i_name.text.strip()
-                            i_value = i_value.text.strip()
-                            if i_name in all_characteristics_data:
-                                all_characteristics_data[i_name].append(i_value)
-                            else:
-                                all_characteristics_data.update(
-                                    {
-                                        i_name: [i_value]
-                                    }
-                                )
-                self.RESULT.append(
-                    {
-                        'url': url,
-                        'категория 1': link_names[0].text,
-                        'категория 2': link_names[1].text,
-                        'категория 3': link_names[2].text,
-                        'категория 4': link_names[3].text,
-                        'категория 5': last_category_name.text,
-                        'артикул': article,
-                        'Наименование товара': item_name,
-                        'цена': price_value,
-                        'Ед изм': price_data,
-                        'image_url': self.BASE_URL + image_url,
-                        'характеристики': all_characteristics_data
-                    }
-                )
-            except Exception as e:
+        await self.parsing_data_from_page(session, url)
 
-                print(f"[ERROR] Ошибка поиска данных со страницы {url}")
-                self.ERRORS.setdefault(url, '[ERROR] Ошибка поиска данных со страницы')
-
-    def get_data_from_page_vodostoki(self, session, url):
-        pass
+    async def get_data_from_page_vodostoki(self, session, url):
+        await self.parsing_data_from_page(session, url)
 
     async def get_tasks(self):
         samara_parser.get_clasters()
