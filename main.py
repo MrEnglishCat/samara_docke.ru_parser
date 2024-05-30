@@ -32,8 +32,8 @@ class SamaraDockeParser:
     async def get_series(self, session, claster_url):
         result_urls = []
         # soup = await self.get_soup(session, claster_url, self.HEADERS)
-        async with session.get(claster_url, headers=headers) as response:
-            soup =  BeautifulSoup(await response.read(), 'lxml')
+        async with session.get(claster_url, headers=self.HEADERS) as response:
+            soup =  BeautifulSoup(await response.read(), 'html.parser')
             for url in soup.find('div', class_='cards-slider').find_all('a', class_='series-card'):
                 result_urls.append(
                     self.BASE_URL + url.get('href')
@@ -45,7 +45,7 @@ class SamaraDockeParser:
         result_urls = []
 
         # soup = await self.get_soup(session, series_url, self.HEADERS)
-        async with session.get(series_url, headers=headers) as response:
+        async with session.get(series_url, headers=self.HEADERS) as response:
             soup = BeautifulSoup(await response.read(), 'html.parser')
         for url in soup.find('div', class_='cards-slider').find_all('a', class_='series-card'):
             result_urls.append(
@@ -57,7 +57,7 @@ class SamaraDockeParser:
     async def get_goods_urls(self, session, goods_url):
         goods_urls = []
         # soup = await self.get_soup(session, goods_url, self.HEADERS)
-        async with session.get(goods_url, headers=headers) as response:
+        async with session.get(goods_url, headers=self.HEADERS) as response:
             soup = BeautifulSoup(await response.read(), 'html.parser')
         for url in soup.find('div', class_='products-tile').find_all('a', class_='product-card__name'):
             goods_urls.append(
