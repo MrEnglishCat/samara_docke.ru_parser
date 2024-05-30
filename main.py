@@ -9,7 +9,7 @@ from fake_useragent import UserAgent
 
 
 class SamaraDockeParser:
-    RESULT = {}
+    RESULT = []
     BASE_URL = 'https://samara.docke.ru'
     URL_LIST = ['https://samara.docke.ru/siding/lux/korabelny-brus-d5d/orekh/']
     LINKS = {}
@@ -76,21 +76,88 @@ class SamaraDockeParser:
             except Exception as e:
                 goods_urls = await self.get_goods_urls(session, s_url)
                 self.LINKS[url].extend(goods_urls)
+            for g_url in goods_urls:
+                if 'facades' in url:
+                    await self.get_data_from_page_facades(session, g_url)
+                    print('===', self.RESULT)
+                elif 'roofs' in url:
+                    item_data =  self.get_data_from_page_roofs(session, g_url)
+                else:
+                    item_data =  self.get_data_from_page_vodostoki(session, g_url)
+                break
+            break
+        # pprint(self.LINKS)
 
-        pprint(self.LINKS)
+    async def get_data_from_page_facades(self, session, url):
+        async with session.get(url, headers=self.HEADERS) as response:
+            result = {}
+            soup = BeautifulSoup(await response.read(), 'html.parser')
+            if (a:=soup.find('div', class_='page-404 container')):
+                self.RESULT.append(
+                    {
+                        url:a.text
+                    }
+                )
+                return
+            categpry_name_1_5 = soup.find('nav', class_='breadcrumbs container')
+            print(url, categpry_name_1_5)
+            # link_names = categpry_name_1_5.find_all('a')
+            # last_category_name = categpry_name_1_5.find_all('span')[-1]
+            # article = soup.find('div', class_='product-detail__articul').text.split(':')[-1].strip()
+            # item_name = soup.find('h1', class_='product-heading').text
+            # price_value = soup.find('span', class_='product-price__value').text
+            # price_data = soup.find('span', class_='product-price__text').text
+            # image_url = soup.find('div', class_='product-img__items').find('a')['href']
+            #
+            # all_characteristics = soup.find('div', class_='product-blocks__item').find('div',
+            #                                                                            class_='characteristics').find_all(
+            #     class_='characteristics__item')
+            # # all_characteristics = soup.find('div', class_='product-blocks__item')
+            # all_characteristics_data = {}
+            # for item in all_characteristics:
+            #     if item is not None:
+            #         i_name = item.find('div', class_='characteristics__name')
+            #         i_value = item.find('div', class_='characteristics__value')
+            #         if i_name is not None and i_value is not None:
+            #             i_name = i_name.text
+            #             i_value = i_value.text
+            #             all_characteristics_data.update(
+            #                 {
+            #                     i_name: i_value
+            #                 }
+            #             )
+            #
+            self.RESULT.update(
+                {
+                    'url': url,
+            #         'категория 1': link_names[0].text,
+            #         'категория 2': link_names[1].text,
+            #         'категория 3': link_names[2].text,
+            #         'категория 4': link_names[3].text,
+            #         'категория 5': last_category_name.text,
+            #         'артикул': article,
+            #         'Наименование товара': item_name,
+            #         'цена': price_value,
+            #         'Ед изм': price_data,
+            #         'image_url': self.BASE_URL + image_url,
+            #         'характеристики': all_characteristics_data
+                }
+            )
 
-    def get_data_from_page_facades(self, soup):
+
+        #
+        # with open('result.pdf', 'wb') as f:
+        #     f.write(requests.get('https://www.docke.ru/upload/iblock/3e2/vd72hvtmv90rg8bs5thx49ne3lomr2zn/IM-LCH_GCH-2024-WEB-_ot-17.05_.pdf', headers=headers).content)
+
+
+    def get_data_from_page_roofs(self, session, url):
         pass
 
-    def get_data_from_page_roofs(self, soup):
-        pass
-
-    def get_data_from_page_vodostoki(self, soup):
+    def get_data_from_page_vodostoki(self, session, url):
         pass
 
     async def get_tasks(self):
         samara_parser.get_clasters()
-        print(self.LINKS)
         async with aiohttp.ClientSession(trust_env=True) as session:
             for url in self.LINKS.keys():
                 self.TASKS.append(asyncio.create_task(self.get_all_urls(session, url)))
@@ -101,59 +168,6 @@ class SamaraDockeParser:
         asyncio.run(
             self.get_tasks()
         )
-
-    def a(self):
-        response = requests.get(url, headers=headers).content
-        soup = BeautifulSoup(response, 'html.parser')
-        categpry_name_1_5 = soup.find('nav', class_='breadcrumbs container')
-        link_names = categpry_name_1_5.find_all('a')
-        last_category_name = categpry_name_1_5.find_all('span')[-1]
-        article = soup.find('div', class_='product-detail__articul').text.split(':')[-1].strip()
-        item_name = soup.find('h1', class_='product-heading').text
-        price_value = soup.find('span', class_='product-price__value').text
-        price_data = soup.find('span', class_='product-price__text').text
-        image_url = soup.find('div', class_='product-img__items').find('a')['href']
-
-        all_characteristics = soup.find('div', class_='product-blocks__item').find('div',
-                                                                                   class_='characteristics').find_all(
-            class_='characteristics__item')
-        # all_characteristics = soup.find('div', class_='product-blocks__item')
-        all_characteristics_data = {}
-        for item in all_characteristics:
-            if item is not None:
-                i_name = item.find('div', class_='characteristics__name')
-                i_value = item.find('div', class_='characteristics__value')
-                if i_name is not None and i_value is not None:
-                    i_name = i_name.text
-                    i_value = i_value.text
-                    all_characteristics_data.update(
-                        {
-                            i_name: i_value
-                        }
-                    )
-
-        result.update(
-            {
-                'url': url,
-                'категория 1': link_names[0].text,
-                'категория 2': link_names[1].text,
-                'категория 3': link_names[2].text,
-                'категория 4': link_names[3].text,
-                'категория 5': last_category_name.text,
-                'артикул': article,
-                'Наименование товара': item_name,
-                'цена': price_value,
-                'Ед изм': price_data,
-                'image_url': BASE_URL + image_url,
-                'характеристики': all_characteristics_data
-            }
-        )
-
-        pprint.pprint(result)
-
-        #
-        # with open('result.pdf', 'wb') as f:
-        #     f.write(requests.get('https://www.docke.ru/upload/iblock/3e2/vd72hvtmv90rg8bs5thx49ne3lomr2zn/IM-LCH_GCH-2024-WEB-_ot-17.05_.pdf', headers=headers).content)
 
 
 samara_parser = SamaraDockeParser()
